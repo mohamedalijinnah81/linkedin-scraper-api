@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: linkedin-scraper-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    envVars:
+      - key: CHROMEDRIVER
+        value: /usr/local/bin/chromedriver
+      - key: PYTHONPATH
+        value: /opt/render/project/src
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: MAX_DRIVERS
+        value: 2
+    disk:
+      name: linkedin-scraper-data
+      mountPath: /opt/render/project/data
+      sizeGB: 1
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
