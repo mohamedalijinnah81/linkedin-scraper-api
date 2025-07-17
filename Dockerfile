@@ -21,6 +21,13 @@ RUN apt-get update && apt-get install -y \
     libatk1.0-0 \
     libgtk-3-0 \
     libgbm1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxi6 \
+    libxtst6 \
+    libnss3-dev \
+    libgconf-2-4 \
     && rm -rf /var/lib/apt/lists/*
 
 # Add Google Chrome's signing key and repository
@@ -45,7 +52,8 @@ ENV CHROMEDRIVER=/usr/local/bin/chromedriver
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV DISPLAY=:99
-ENV MAX_DRIVERS=2
+ENV MAX_DRIVERS=1
+ENV CHROME_BIN=/usr/bin/google-chrome
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
@@ -53,6 +61,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
+
+# Create necessary directories and set permissions
+RUN mkdir -p /tmp/chromedriver-logs && chmod 777 /tmp/chromedriver-logs
 
 # Create a non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
