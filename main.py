@@ -107,6 +107,10 @@ def create_driver():
         '--enable-chrome-logs'
     ]
     
+    # Explicitly set Chrome binary location for cloud environments
+    chrome_bin = os.getenv("CHROME_BIN", "/usr/bin/google-chrome")
+    chrome_options.binary_location = chrome_bin
+
     try:
         # Use webdriver-manager to get the correct ChromeDriver
         service = Service(ChromeDriverManager().install())
