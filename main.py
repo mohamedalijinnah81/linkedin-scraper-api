@@ -16,6 +16,7 @@ from datetime import datetime
 import json
 import time
 import random
+import shutil
 
 # Import the linkedin_scraper library
 from linkedin_scraper import Person, Company, Job, JobSearch, actions
@@ -107,8 +108,9 @@ def create_driver():
         '--enable-chrome-logs'
     ]
     
-    # Explicitly set Chrome binary location for cloud environments
-    chrome_bin = os.getenv("CHROME_BIN", "/usr/bin/google-chrome")
+    # Dynamically detect Chrome binary location
+    chrome_bin = os.getenv("CHROME_BIN") or shutil.which("google-chrome") or shutil.which("chromium") or "/usr/bin/google-chrome"
+    logger.info(f"Using Chrome binary at: {chrome_bin}")
     chrome_options.binary_location = chrome_bin
 
     try:
