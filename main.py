@@ -19,6 +19,8 @@ import random
 
 # Import the linkedin_scraper library
 from linkedin_scraper import Person, Company, Job, JobSearch, actions
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -106,11 +108,8 @@ def create_driver():
     ]
     
     try:
-        # Create service with custom args
-        from selenium.webdriver.chrome.service import Service
-        service = Service(executable_path='/usr/local/bin/chromedriver', service_args=service_args)
-        
-        # Create driver with service
+        # Use webdriver-manager to get the correct ChromeDriver
+        service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
         # Set conservative timeouts
