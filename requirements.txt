@@ -1,11 +1,9 @@
 fastapi
 uvicorn
-pydantic
 selenium
 linkedin-scraper
+pydantic
 python-multipart
+aiofiles
 requests
-beautifulsoup4
-lxml
-urllib3
-webdriver-manager
+python-dotenv
