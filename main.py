@@ -32,83 +32,103 @@ def create_driver():
     """Create a new Chrome driver with cloud-optimized settings"""
     chrome_options = Options()
     
-    # Essential headless options
-    chrome_options.add_argument('--headless=new')  # Use new headless mode
+    # Essential headless options - use old headless mode for better stability
+    chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--disable-software-rasterizer')
     
-    # Memory and performance optimization
+    # Stability and crash prevention
+    chrome_options.add_argument('--disable-crash-reporter')
+    chrome_options.add_argument('--disable-extensions')
+    chrome_options.add_argument('--disable-in-process-stack-traces')
+    chrome_options.add_argument('--disable-logging')
+    chrome_options.add_argument('--disable-dev-tools')
+    chrome_options.add_argument('--log-level=3')
+    chrome_options.add_argument('--silent')
+    
+    # Memory management - critical for preventing crashes
+    chrome_options.add_argument('--max_old_space_size=2048')
     chrome_options.add_argument('--memory-pressure-off')
-    chrome_options.add_argument('--max_old_space_size=4096')
     chrome_options.add_argument('--disable-background-timer-throttling')
     chrome_options.add_argument('--disable-backgrounding-occluded-windows')
     chrome_options.add_argument('--disable-renderer-backgrounding')
-    
-    # Network and security options
-    chrome_options.add_argument('--disable-web-security')
-    chrome_options.add_argument('--disable-features=TranslateUI')
-    chrome_options.add_argument('--disable-ipc-flooding-protection')
     chrome_options.add_argument('--disable-background-networking')
-    chrome_options.add_argument('--disable-sync')
-    chrome_options.add_argument('--disable-default-apps')
-    chrome_options.add_argument('--disable-extensions')
     
-    # Anti-detection measures
-    chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--start-maximized')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    # Window and display settings
+    chrome_options.add_argument('--window-size=1366,768')  # Smaller window size
+    chrome_options.add_argument('--disable-web-security')
+    chrome_options.add_argument('--disable-features=TranslateUI,BlinkGenPropertyTrees')
+    chrome_options.add_argument('--disable-ipc-flooding-protection')
     
-    # Disable logging and debugging
-    chrome_options.add_argument('--log-level=3')
-    chrome_options.add_argument('--silent')
-    chrome_options.add_argument('--disable-logging')
-    chrome_options.add_argument('--disable-dev-tools')
-    
-    # Cloud environment specific
-    chrome_options.add_argument('--no-first-run')
-    chrome_options.add_argument('--no-default-browser-check')
-    chrome_options.add_argument('--disable-crash-reporter')
-    chrome_options.add_argument('--disable-in-process-stack-traces')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--single-process')  # Important for container environments
-    
-    # Remove remote debugging (this might be causing the localhost connection issue)
-    chrome_options.add_argument('--remote-debugging-port=0')
-    
-    # Set timeouts
-    chrome_options.add_argument('--timeout=60000')
-    chrome_options.add_argument('--page-load-strategy=eager')
+    # User agent and anti-detection
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
     # Additional stability options
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    chrome_options.add_argument('--no-first-run')
+    chrome_options.add_argument('--no-default-browser-check')
+    chrome_options.add_argument('--disable-default-apps')
+    chrome_options.add_argument('--disable-sync')
+    chrome_options.add_argument('--disable-plugins')
+    chrome_options.add_argument('--disable-plugins-discovery')
+    chrome_options.add_argument('--disable-preconnect')
     
-    # Prefs to disable images and other resources for faster loading
+    # Process management - avoid single process to prevent crashes
+    chrome_options.add_argument('--disable-zygote')
+    chrome_options.add_argument('--no-zygote')
+    
+    # Remove problematic options
+    chrome_options.add_argument('--remote-debugging-port=0')
+    chrome_options.add_argument('--disable-remote-debugging')
+    
+    # Service and automation options
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging', 'enable-automation'])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    
+    # Prefs for resource optimization
     prefs = {
         'profile.default_content_setting_values.notifications': 2,
         'profile.default_content_settings.popups': 0,
         'profile.managed_default_content_settings.images': 2,
         'profile.default_content_setting_values.media_stream': 2,
+        'profile.managed_default_content_settings.javascript': 1,
+        'profile.managed_default_content_settings.plugins': 2,
+        'profile.managed_default_content_settings.geolocation': 2,
     }
     chrome_options.add_experimental_option('prefs', prefs)
     
+    # Add service args for better stability
+    service_args = [
+        '--verbose',
+        '--log-path=/tmp/chromedriver.log',
+        '--enable-chrome-logs'
+    ]
+    
     try:
-        # Create driver with extended timeout
-        driver = webdriver.Chrome(options=chrome_options)
+        # Create service with custom args
+        from selenium.webdriver.chrome.service import Service
+        service = Service(executable_path='/usr/local/bin/chromedriver', service_args=service_args)
         
-        # Set timeouts
-        driver.set_page_load_timeout(60)
-        driver.implicitly_wait(10)
+        # Create driver with service
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         
-        # Test basic functionality
-        driver.get("https://www.google.com")
+        # Set conservative timeouts
+        driver.set_page_load_timeout(30)
+        driver.implicitly_wait(5)
         
-        logger.info("Chrome driver created successfully")
-        return driver
+        # Test basic functionality with retry
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                driver.get("https://www.google.com")
+                logger.info(f"Chrome driver created and tested successfully on attempt {attempt + 1}")
+                return driver
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise e
+                logger.warning(f"Driver test failed on attempt {attempt + 1}: {e}")
+                time.sleep(2)
         
     except Exception as e:
         logger.error(f"Failed to create driver: {e}")
@@ -145,15 +165,19 @@ def get_driver():
         return create_driver()
 
 def return_driver(driver):
-    """Return driver to the pool"""
+    """Return driver to the pool with health check"""
+    if not driver:
+        return
+        
     if len(driver_pool) < MAX_DRIVERS:
         try:
             # Test if driver is still functional
             driver.get("https://www.google.com")
+            WebDriverWait(driver, 5).until(EC.title_contains("Google"))
             driver_pool.append(driver)
-            logger.info("Driver returned to pool")
-        except:
-            logger.warning("Driver not functional, closing it")
+            logger.info("Driver returned to pool successfully")
+        except Exception as e:
+            logger.warning(f"Driver not functional, closing it: {e}")
             try:
                 driver.quit()
             except:
@@ -161,53 +185,110 @@ def return_driver(driver):
     else:
         try:
             driver.quit()
+            logger.info("Driver closed (pool full)")
         except:
             pass
 
 def enhanced_login(driver, email, password):
-    """Enhanced login function with better error handling"""
-    try:
-        logger.info("Starting LinkedIn login process")
-        
-        # Navigate to LinkedIn login page
-        driver.get("https://www.linkedin.com/login")
-        
-        # Wait for page to load
-        wait = WebDriverWait(driver, 20)
-        
-        # Wait for email field and enter email
-        email_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
-        email_field.clear()
-        email_field.send_keys(email)
-        
-        # Enter password
-        password_field = driver.find_element(By.ID, "password")
-        password_field.clear()
-        password_field.send_keys(password)
-        
-        # Click login button
-        login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
-        login_button.click()
-        
-        # Wait for login to complete
-        time.sleep(3)
-        
-        # Check if login was successful
-        current_url = driver.current_url
-        if "challenge" in current_url or "checkpoint" in current_url:
-            raise Exception("LinkedIn security challenge encountered")
-        elif "login" in current_url:
-            raise Exception("Login failed - credentials may be incorrect")
-        
-        logger.info("LinkedIn login successful")
-        return True
-        
-    except TimeoutException:
-        logger.error("Login timeout - page elements not found")
-        raise Exception("Login timeout")
-    except Exception as e:
-        logger.error(f"Login failed: {str(e)}")
-        raise Exception(f"Login failed: {str(e)}")
+    """Enhanced login function with better error handling and stability"""
+    max_retries = 2
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Starting LinkedIn login process (attempt {attempt + 1}/{max_retries})")
+            
+            # Check if driver is still valid
+            try:
+                driver.current_url
+            except Exception:
+                raise Exception("Driver session is invalid")
+            
+            # Navigate to LinkedIn login page with error handling
+            try:
+                driver.get("https://www.linkedin.com/login")
+                time.sleep(2)  # Let page settle
+            except Exception as e:
+                logger.error(f"Failed to navigate to login page: {e}")
+                if attempt == max_retries - 1:
+                    raise Exception(f"Failed to navigate to login page: {e}")
+                continue
+            
+            # Wait for page to load completely
+            wait = WebDriverWait(driver, 15)
+            
+            try:
+                # Wait for email field and enter email
+                email_field = wait.until(EC.element_to_be_clickable((By.ID, "username")))
+                email_field.clear()
+                time.sleep(0.5)
+                email_field.send_keys(email)
+                
+                # Wait for password field and enter password
+                password_field = wait.until(EC.element_to_be_clickable((By.ID, "password")))
+                password_field.clear()
+                time.sleep(0.5)
+                password_field.send_keys(password)
+                
+                # Wait for login button and click
+                login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']")))
+                time.sleep(1)
+                login_button.click()
+                
+                # Wait for login to complete
+                time.sleep(5)
+                
+                # Check if we're still on the login page
+                current_url = driver.current_url
+                logger.info(f"Current URL after login: {current_url}")
+                
+                if "challenge" in current_url or "checkpoint" in current_url:
+                    raise Exception("LinkedIn security challenge encountered")
+                elif "login" in current_url:
+                    # Check for error messages
+                    try:
+                        error_elements = driver.find_elements(By.CSS_SELECTOR, ".alert--error, .form__label--error")
+                        if error_elements:
+                            error_text = error_elements[0].text
+                            raise Exception(f"Login failed with error: {error_text}")
+                    except:
+                        pass
+                    raise Exception("Login failed - credentials may be incorrect or session expired")
+                
+                # Verify we're logged in by checking for common post-login elements
+                try:
+                    # Look for LinkedIn navigation or user profile elements
+                    wait.until(EC.any_of(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "nav.global-nav")),
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "[data-test-id='nav-menu']")),
+                        EC.presence_of_element_located((By.CSS_SELECTOR, ".global-nav__primary-link"))
+                    ))
+                    logger.info("LinkedIn login successful - found navigation elements")
+                    return True
+                except TimeoutException:
+                    logger.warning("Login may have succeeded but navigation elements not found")
+                    # Continue anyway as the URL check passed
+                    return True
+                    
+            except TimeoutException as e:
+                logger.error(f"Login timeout on attempt {attempt + 1}: {e}")
+                if attempt == max_retries - 1:
+                    raise Exception("Login timeout - page elements not found")
+                continue
+                
+            except Exception as e:
+                logger.error(f"Login error on attempt {attempt + 1}: {e}")
+                if attempt == max_retries - 1:
+                    raise Exception(f"Login failed: {str(e)}")
+                continue
+                
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.error(f"All login attempts failed: {e}")
+                raise Exception(f"Login failed after {max_retries} attempts: {str(e)}")
+            else:
+                logger.warning(f"Login attempt {attempt + 1} failed, retrying: {e}")
+                time.sleep(3)  # Wait before retry
+                continue
 
 def login_if_needed(driver, email=None, password=None):
     """Login to LinkedIn if credentials are provided"""
@@ -353,39 +434,61 @@ async def scrape_person(request: PersonRequest):
     """Scrape a LinkedIn person profile"""
     driver = None
     try:
+        logger.info(f"Starting person scraping for: {request.linkedin_url}")
         driver = get_driver()
         
         # Login if credentials provided
-        login_if_needed(driver, request.login_email, request.login_password)
+        if request.login_email and request.login_password:
+            login_if_needed(driver, request.login_email, request.login_password)
         
         # Add random delay to avoid detection
-        time.sleep(random.uniform(2, 5))
+        time.sleep(random.uniform(2, 4))
+        
+        # Verify driver is still working before scraping
+        try:
+            driver.current_url
+        except Exception:
+            logger.error("Driver session invalid, creating new one")
+            return_driver(driver)
+            driver = get_driver()
+            if request.login_email and request.login_password:
+                login_if_needed(driver, request.login_email, request.login_password)
         
         # Create person object and scrape
-        person = Person(
-            linkedin_url=str(request.linkedin_url),
-            driver=driver,
-            scrape=True
-        )
-        
-        # Convert experiences, educations, interests, accomplishments to dictionaries
-        experiences = [serialize_object(exp) for exp in (person.experiences or [])]
-        educations = [serialize_object(edu) for edu in (person.educations or [])]
-        interests = [serialize_object(interest) for interest in (person.interests or [])]
-        accomplishments = [serialize_object(acc) for acc in (person.accomplishments or [])]
-        
-        return PersonResponse(
-            name=person.name,
-            about=person.about,
-            company=person.company,
-            job_title=person.job_title,
-            linkedin_url=person.linkedin_url,
-            experiences=experiences,
-            educations=educations,
-            interests=interests,
-            accomplishments=accomplishments,
-            scraped_at=datetime.now()
-        )
+        try:
+            person = Person(
+                linkedin_url=str(request.linkedin_url),
+                driver=driver,
+                scrape=True
+            )
+            
+            # Convert experiences, educations, interests, accomplishments to dictionaries
+            experiences = [serialize_object(exp) for exp in (person.experiences or [])]
+            educations = [serialize_object(edu) for edu in (person.educations or [])]
+            interests = [serialize_object(interest) for interest in (person.interests or [])]
+            accomplishments = [serialize_object(acc) for acc in (person.accomplishments or [])]
+            
+            logger.info(f"Successfully scraped person: {person.name}")
+            
+            return PersonResponse(
+                name=person.name,
+                about=person.about,
+                company=person.company,
+                job_title=person.job_title,
+                linkedin_url=person.linkedin_url,
+                experiences=experiences,
+                educations=educations,
+                interests=interests,
+                accomplishments=accomplishments,
+                scraped_at=datetime.now()
+            )
+            
+        except Exception as e:
+            logger.error(f"Error during person scraping: {e}")
+            # Try to recover by creating a new driver
+            return_driver(driver)
+            driver = None
+            raise e
         
     except HTTPException:
         raise
