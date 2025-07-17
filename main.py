@@ -4,12 +4,18 @@ from pydantic import BaseModel, HttpUrl
 from typing import List, Optional, Dict, Any
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, WebDriverException
 import os
 import asyncio
 from contextlib import asynccontextmanager
 import logging
 from datetime import datetime
 import json
+import time
+import random
 
 # Import the linkedin_scraper library
 from linkedin_scraper import Person, Company, Job, JobSearch, actions
@@ -20,58 +26,212 @@ logger = logging.getLogger(__name__)
 
 # Global driver pool
 driver_pool = []
-MAX_DRIVERS = 3
+MAX_DRIVERS = int(os.getenv("MAX_DRIVERS", "2"))  # Reduced for cloud environment
 
 def create_driver():
-    """Create a new Chrome driver with optimized settings"""
+    """Create a new Chrome driver with cloud-optimized settings"""
     chrome_options = Options()
-    chrome_options.add_argument('--headless')
+    
+    # Essential headless options
+    chrome_options.add_argument('--headless=new')  # Use new headless mode
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--disable-software-rasterizer')
+    
+    # Memory and performance optimization
+    chrome_options.add_argument('--memory-pressure-off')
+    chrome_options.add_argument('--max_old_space_size=4096')
+    chrome_options.add_argument('--disable-background-timer-throttling')
+    chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+    chrome_options.add_argument('--disable-renderer-backgrounding')
+    
+    # Network and security options
+    chrome_options.add_argument('--disable-web-security')
+    chrome_options.add_argument('--disable-features=TranslateUI')
+    chrome_options.add_argument('--disable-ipc-flooding-protection')
+    chrome_options.add_argument('--disable-background-networking')
+    chrome_options.add_argument('--disable-sync')
+    chrome_options.add_argument('--disable-default-apps')
+    chrome_options.add_argument('--disable-extensions')
+    
+    # Anti-detection measures
     chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    chrome_options.add_argument('--start-maximized')
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    
+    # Disable logging and debugging
+    chrome_options.add_argument('--log-level=3')
+    chrome_options.add_argument('--silent')
+    chrome_options.add_argument('--disable-logging')
+    chrome_options.add_argument('--disable-dev-tools')
+    
+    # Cloud environment specific
+    chrome_options.add_argument('--no-first-run')
+    chrome_options.add_argument('--no-default-browser-check')
+    chrome_options.add_argument('--disable-crash-reporter')
+    chrome_options.add_argument('--disable-in-process-stack-traces')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--single-process')  # Important for container environments
+    
+    # Remove remote debugging (this might be causing the localhost connection issue)
+    chrome_options.add_argument('--remote-debugging-port=0')
+    
+    # Set timeouts
+    chrome_options.add_argument('--timeout=60000')
+    chrome_options.add_argument('--page-load-strategy=eager')
+    
+    # Additional stability options
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+    
+    # Prefs to disable images and other resources for faster loading
+    prefs = {
+        'profile.default_content_setting_values.notifications': 2,
+        'profile.default_content_settings.popups': 0,
+        'profile.managed_default_content_settings.images': 2,
+        'profile.default_content_setting_values.media_stream': 2,
+    }
+    chrome_options.add_experimental_option('prefs', prefs)
     
     try:
+        # Create driver with extended timeout
         driver = webdriver.Chrome(options=chrome_options)
+        
+        # Set timeouts
+        driver.set_page_load_timeout(60)
+        driver.implicitly_wait(10)
+        
+        # Test basic functionality
+        driver.get("https://www.google.com")
+        
+        logger.info("Chrome driver created successfully")
         return driver
+        
     except Exception as e:
         logger.error(f"Failed to create driver: {e}")
         raise
 
 def initialize_driver_pool():
-    """Initialize the driver pool"""
+    """Initialize the driver pool with retry logic"""
     global driver_pool
-    for _ in range(MAX_DRIVERS):
-        try:
-            driver = create_driver()
-            driver_pool.append(driver)
-        except Exception as e:
-            logger.error(f"Failed to create driver for pool: {e}")
+    successful_drivers = 0
+    max_retries = 3
+    
+    for i in range(MAX_DRIVERS):
+        for retry in range(max_retries):
+            try:
+                driver = create_driver()
+                driver_pool.append(driver)
+                successful_drivers += 1
+                logger.info(f"Successfully created driver {i+1}/{MAX_DRIVERS}")
+                break
+            except Exception as e:
+                logger.error(f"Failed to create driver {i+1}, attempt {retry+1}/{max_retries}: {e}")
+                if retry == max_retries - 1:
+                    logger.error(f"Failed to create driver {i+1} after {max_retries} attempts")
+                time.sleep(2)  # Wait before retry
+    
+    logger.info(f"Driver pool initialized with {successful_drivers}/{MAX_DRIVERS} drivers")
 
 def get_driver():
     """Get an available driver from the pool"""
     if driver_pool:
         return driver_pool.pop()
     else:
+        logger.warning("No drivers available in pool, creating new one")
         return create_driver()
 
 def return_driver(driver):
     """Return driver to the pool"""
     if len(driver_pool) < MAX_DRIVERS:
-        driver_pool.append(driver)
+        try:
+            # Test if driver is still functional
+            driver.get("https://www.google.com")
+            driver_pool.append(driver)
+            logger.info("Driver returned to pool")
+        except:
+            logger.warning("Driver not functional, closing it")
+            try:
+                driver.quit()
+            except:
+                pass
     else:
         try:
             driver.quit()
         except:
             pass
 
+def enhanced_login(driver, email, password):
+    """Enhanced login function with better error handling"""
+    try:
+        logger.info("Starting LinkedIn login process")
+        
+        # Navigate to LinkedIn login page
+        driver.get("https://www.linkedin.com/login")
+        
+        # Wait for page to load
+        wait = WebDriverWait(driver, 20)
+        
+        # Wait for email field and enter email
+        email_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
+        email_field.clear()
+        email_field.send_keys(email)
+        
+        # Enter password
+        password_field = driver.find_element(By.ID, "password")
+        password_field.clear()
+        password_field.send_keys(password)
+        
+        # Click login button
+        login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+        login_button.click()
+        
+        # Wait for login to complete
+        time.sleep(3)
+        
+        # Check if login was successful
+        current_url = driver.current_url
+        if "challenge" in current_url or "checkpoint" in current_url:
+            raise Exception("LinkedIn security challenge encountered")
+        elif "login" in current_url:
+            raise Exception("Login failed - credentials may be incorrect")
+        
+        logger.info("LinkedIn login successful")
+        return True
+        
+    except TimeoutException:
+        logger.error("Login timeout - page elements not found")
+        raise Exception("Login timeout")
+    except Exception as e:
+        logger.error(f"Login failed: {str(e)}")
+        raise Exception(f"Login failed: {str(e)}")
+
+def login_if_needed(driver, email=None, password=None):
+    """Login to LinkedIn if credentials are provided"""
+    if email and password:
+        try:
+            # Use enhanced login instead of actions.login
+            enhanced_login(driver, email, password)
+            logger.info("Successfully logged in to LinkedIn")
+        except Exception as e:
+            logger.error(f"Failed to login: {e}")
+            raise HTTPException(status_code=401, detail=f"Failed to login to LinkedIn: {str(e)}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up LinkedIn Scraper API...")
-    initialize_driver_pool()
+    try:
+        initialize_driver_pool()
+        logger.info("Driver pool initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize driver pool: {e}")
+    
     yield
+    
     # Shutdown
     logger.info("Shutting down LinkedIn Scraper API...")
     for driver in driver_pool:
@@ -96,7 +256,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic models
+# Pydantic models (keep existing models)
 class PersonRequest(BaseModel):
     linkedin_url: HttpUrl
     login_email: Optional[str] = None
@@ -123,7 +283,7 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
-# Response models
+# Response models (keep existing models)
 class PersonResponse(BaseModel):
     name: Optional[str]
     about: Optional[str]
@@ -164,16 +324,6 @@ def serialize_object(obj):
         return {key: value for key, value in obj.__dict__.items() if not key.startswith('_')}
     return str(obj)
 
-def login_if_needed(driver, email=None, password=None):
-    """Login to LinkedIn if credentials are provided"""
-    if email and password:
-        try:
-            actions.login(driver, email, password)
-            logger.info("Successfully logged in to LinkedIn")
-        except Exception as e:
-            logger.error(f"Failed to login: {e}")
-            raise HTTPException(status_code=401, detail="Failed to login to LinkedIn")
-
 # API Endpoints
 @app.get("/")
 async def root():
@@ -194,7 +344,8 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now(),
-        "active_drivers": len(driver_pool)
+        "active_drivers": len(driver_pool),
+        "max_drivers": MAX_DRIVERS
     }
 
 @app.post("/person", response_model=PersonResponse)
@@ -206,6 +357,9 @@ async def scrape_person(request: PersonRequest):
         
         # Login if credentials provided
         login_if_needed(driver, request.login_email, request.login_password)
+        
+        # Add random delay to avoid detection
+        time.sleep(random.uniform(2, 5))
         
         # Create person object and scrape
         person = Person(
@@ -233,6 +387,8 @@ async def scrape_person(request: PersonRequest):
             scraped_at=datetime.now()
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error scraping person: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to scrape person profile: {str(e)}")
@@ -249,6 +405,9 @@ async def scrape_company(request: CompanyRequest):
         
         # Login if credentials provided
         login_if_needed(driver, request.login_email, request.login_password)
+        
+        # Add random delay
+        time.sleep(random.uniform(2, 5))
         
         # Create company object and scrape
         company = Company(
@@ -277,6 +436,8 @@ async def scrape_company(request: CompanyRequest):
             scraped_at=datetime.now()
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error scraping company: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to scrape company profile: {str(e)}")
@@ -294,6 +455,9 @@ async def scrape_job(request: JobRequest):
         # Login (required for job scraping)
         login_if_needed(driver, request.login_email, request.login_password)
         
+        # Add random delay
+        time.sleep(random.uniform(2, 5))
+        
         # Create job object and scrape
         job = Job(
             linkedin_url=str(request.linkedin_url),
@@ -310,6 +474,8 @@ async def scrape_job(request: JobRequest):
             scraped_at=datetime.now()
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error scraping job: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to scrape job posting: {str(e)}")
@@ -326,6 +492,9 @@ async def search_jobs(request: JobSearchRequest):
         
         # Login (required for job search)
         login_if_needed(driver, request.login_email, request.login_password)
+        
+        # Add random delay
+        time.sleep(random.uniform(2, 5))
         
         # Create job search object
         job_search = JobSearch(
@@ -358,6 +527,8 @@ async def search_jobs(request: JobSearchRequest):
             "scraped_at": datetime.now()
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error searching jobs: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to search jobs: {str(e)}")
@@ -379,6 +550,9 @@ async def scrape_multiple_persons(urls: List[HttpUrl], login_email: Optional[str
         
         for url in urls:
             try:
+                # Add random delay between requests
+                time.sleep(random.uniform(3, 7))
+                
                 person = Person(
                     linkedin_url=str(url),
                     driver=driver,
@@ -407,12 +581,15 @@ async def scrape_multiple_persons(urls: List[HttpUrl], login_email: Optional[str
                 })
                 
             except Exception as e:
+                logger.error(f"Error scraping URL {url}: {e}")
                 results.append({
                     "url": str(url),
                     "success": False,
                     "error": str(e)
                 })
                 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch scraping failed: {str(e)}")
     finally:
