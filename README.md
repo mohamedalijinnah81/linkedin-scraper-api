@@ -1,348 +1,569 @@
 # LinkedIn Scraper API
 
-A comprehensive REST API for scraping LinkedIn profiles, companies, and job postings using the `linkedin-scraper` library. This API provides endpoints for extracting structured data from LinkedIn with support for batch processing and automated login.
+A comprehensive RESTful API for scraping LinkedIn profiles, companies, and job postings built with FastAPI and Selenium. This API provides endpoints to extract structured data from LinkedIn with automatic login handling and containerized deployment.
 
 ## Features
 
-- **Person Profile Scraping**: Extract detailed information from LinkedIn profiles including experience, education, skills, and accomplishments
-- **Company Profile Scraping**: Get comprehensive company data including about section, employees, and company details
-- **Job Scraping**: Extract job posting details and requirements
-- **Job Search**: Search for jobs with specific queries and get structured results
-- **Batch Processing**: Process multiple profiles simultaneously
-- **Driver Pool Management**: Efficient resource management with connection pooling
-- **Health Monitoring**: Built-in health checks and monitoring endpoints
-- **CORS Support**: Cross-origin resource sharing for web applications
-- **Comprehensive Error Handling**: Detailed error responses and logging
+- 🚀 **Fast and Async**: Built with FastAPI for high performance
+- 🔐 **Automatic Login**: Uses environment variables for LinkedIn authentication
+- 🏢 **Multiple Scrapers**: Support for Person, Company, and Job scraping
+- 🐳 **Containerized**: Docker-ready with Chrome/ChromeDriver included
+- 📊 **Structured Data**: Returns clean, structured JSON responses
+- 🔄 **Connection Pooling**: Efficient WebDriver management
+- 📋 **Comprehensive Logging**: Detailed logging for debugging
+- 🛡️ **Error Handling**: Robust error handling and validation
 
 ## Quick Start
 
-### Prerequisites
+### Using Docker (Recommended)
 
-- Python 3.11+
-- Chrome/Chromium browser
-- ChromeDriver
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/linkedin-scraper-api.git
+   cd linkedin-scraper-api
+   ```
 
-### Installation
+2. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your LinkedIn credentials
+   ```
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd linkedin-scraper-api
-```
+3. **Run with Docker Compose**
+   ```bash
+   docker-compose up --build
+   ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+4. **Access the API**
+   - API: http://localhost:8000
+   - Documentation: http://localhost:8000/docs
+   - Health Check: http://localhost:8000/health
 
-3. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-4. Run the application:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-The API will be available at `http://localhost:8000`
-
-## Docker Deployment
-
-### Build and run with Docker:
+### Using Docker Hub Image
 
 ```bash
-docker build -t linkedin-scraper-api .
-docker run -p 8000:8000 linkedin-scraper-api
+# Pull the latest image
+docker pull ghcr.io/yourusername/linkedin-scraper-api:latest
+
+# Run the container
+docker run -p 8000:8000 \
+  -e LINKEDIN_EMAIL=your-email@example.com \
+  -e LINKEDIN_PASSWORD=your-password \
+  ghcr.io/yourusername/linkedin-scraper-api:latest
 ```
-
-### Using Docker Compose:
-
-```yaml
-version: '3.8'
-services:
-  linkedin-scraper-api:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - CHROMEDRIVER=/usr/local/bin/chromedriver
-      - MAX_DRIVERS=3
-    volumes:
-      - ./data:/app/data
-```
-
-## Render Deployment
-
-This API is configured for easy deployment on Render.com:
-
-1. Connect your GitHub repository to Render
-2. Use the provided `render.yaml` configuration
-3. Set environment variables in Render dashboard
-4. Deploy!
-
-The `render.yaml` file includes:
-- Automatic dependency installation
-- Chrome and ChromeDriver setup
-- Health check configuration
-- Environment variable management
 
 ## API Endpoints
 
-### Health Check
-
-```http
-GET /health
+### Base URL
+```
+http://localhost:8000
 ```
 
-Returns API health status and active driver count.
+### Authentication
+The API handles LinkedIn authentication internally using environment variables. No API key required.
 
-### Person Profile Scraping
+### Endpoints Overview
 
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Root endpoint with API information |
+| GET | `/health` | Health check endpoint |
+| POST | `/scrape/person` | Scrape a LinkedIn person profile |
+| POST | `/scrape/company` | Scrape a LinkedIn company profile |
+| POST | `/scrape/job` | Scrape a LinkedIn job posting |
+| POST | `/scrape/job-search` | Search for jobs (coming soon) |
+
+---
+
+## Person Scraping
+
+### Endpoint
 ```http
-POST /person
-Content-Type: application/json
+POST /scrape/person
+```
 
+### Request Body
+```json
 {
-  "linkedin_url": "https://www.linkedin.com/in/username",
-  "login_email": "your-email@example.com",
-  "login_password": "your-password"
+  "linkedin_url": "https://www.linkedin.com/in/john-doe"
 }
 ```
 
-**Response:**
+### Response
 ```json
 {
+  "linkedin_url": "https://www.linkedin.com/in/john-doe",
   "name": "John Doe",
   "about": "Software Engineer with 5+ years experience...",
+  "experiences": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "Tech Corp",
+      "duration": "2021 - Present",
+      "location": "San Francisco, CA",
+      "description": "Leading development of..."
+    }
+  ],
+  "educations": [
+    {
+      "institution": "University of California",
+      "degree": "Bachelor of Science in Computer Science",
+      "duration": "2015 - 2019",
+      "description": "Graduated Magna Cum Laude"
+    }
+  ],
+  "interests": [
+    {
+      "name": "Artificial Intelligence",
+      "followers": "1.2M followers"
+    }
+  ],
+  "accomplishments": [
+    {
+      "category": "Publications",
+      "title": "Machine Learning in Production",
+      "description": "Published research paper on..."
+    }
+  ],
   "company": "Tech Corp",
   "job_title": "Senior Software Engineer",
-  "linkedin_url": "https://www.linkedin.com/in/username",
-  "experiences": [...],
-  "educations": [...],
-  "interests": [...],
-  "accomplishments": [...],
   "scraped_at": "2024-01-15T10:30:00Z"
 }
 ```
 
-### Company Profile Scraping
-
-```http
-POST /company
-Content-Type: application/json
-
-{
-  "linkedin_url": "https://www.linkedin.com/company/company-name",
-  "get_employees": true,
-  "login_email": "your-email@example.com",
-  "login_password": "your-password"
-}
+### cURL Example
+```bash
+curl -X POST "http://localhost:8000/scrape/job" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "linkedin_url": "https://www.linkedin.com/jobs/view/1234567890"
+  }'
 ```
 
-**Response:**
+---
+
+## Job Search
+
+### Endpoint
+```http
+POST /scrape/job-search
+```
+
+### Request Body
 ```json
 {
-  "name": "Tech Corp",
-  "about_us": "Leading technology company...",
-  "website": "https://techcorp.com",
-  "headquarters": "San Francisco, CA",
-  "founded": "2010",
-  "company_type": "Public Company",
-  "company_size": "10,001+ employees",
-  "specialties": ["Software Development", "AI", "Cloud Computing"],
-  "linkedin_url": "https://www.linkedin.com/company/company-name",
-  "employees": [...],
+  "query": "Software Engineer",
+  "location": "San Francisco, CA",
+  "limit": 10
+}
+```
+
+### Response
+```json
+{
+  "query": "Software Engineer",
+  "location": "San Francisco, CA", 
+  "limit": 10,
+  "message": "Job search functionality coming soon",
   "scraped_at": "2024-01-15T10:30:00Z"
 }
 ```
 
-### Job Scraping
-
-```http
-POST /job
-Content-Type: application/json
-
-{
-  "linkedin_url": "https://www.linkedin.com/jobs/view/job-id",
-  "login_email": "your-email@example.com",
-  "login_password": "your-password"
-}
+### cURL Example
+```bash
+curl -X POST "http://localhost:8000/scrape/job-search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Software Engineer",
+    "location": "San Francisco, CA",
+    "limit": 10
+  }'
 ```
 
-### Job Search
-
-```http
-POST /job-search
-Content-Type: application/json
-
-{
-  "query": "Software Engineer",
-  "login_email": "your-email@example.com",
-  "login_password": "your-password",
-  "max_results": 10
-}
-```
-
-### Batch Person Scraping
-
-```http
-POST /batch-persons
-Content-Type: application/json
-
-{
-  "urls": [
-    "https://www.linkedin.com/in/person1",
-    "https://www.linkedin.com/in/person2"
-  ],
-  "login_email": "your-email@example.com",
-  "login_password": "your-password"
-}
-```
-
-## Authentication
-
-LinkedIn credentials can be provided in two ways:
-
-1. **Per-request**: Include `login_email` and `login_password` in each API request
-2. **Environment variables**: Set `LINKEDIN_EMAIL` and `LINKEDIN_PASSWORD` in your environment
-
-**Note**: LinkedIn may detect automated access. Use credentials from accounts that have appropriate permissions and be mindful of rate limits.
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CHROMEDRIVER` | Path to ChromeDriver executable | `/usr/local/bin/chromedriver` |
-| `API_HOST` | API host address | `0.0.0.0` |
-| `API_PORT` | API port number | `8000` |
-| `MAX_DRIVERS` | Maximum number of Chrome drivers in pool | `3` |
-| `LOG_LEVEL` | Logging level | `INFO` |
-| `LINKEDIN_EMAIL` | Default LinkedIn email | None |
-| `LINKEDIN_PASSWORD` | Default LinkedIn password | None |
-
-### Driver Pool Management
-
-The API uses a connection pool to manage Chrome drivers efficiently:
-
-- **Pool Size**: Configurable via `MAX_DRIVERS`
-- **Resource Reuse**: Drivers are reused across requests
-- **Automatic Cleanup**: Drivers are properly closed on shutdown
-- **Error Recovery**: Failed drivers are automatically replaced
+---
 
 ## Error Handling
 
-The API provides comprehensive error handling:
+The API returns standard HTTP status codes and detailed error messages:
 
-- **400 Bad Request**: Invalid input parameters
-- **401 Unauthorized**: LinkedIn login failed
-- **404 Not Found**: LinkedIn profile/company not found
-- **429 Too Many Requests**: Rate limit exceeded
-- **500 Internal Server Error**: Scraping or server errors
+### Success Responses
+- `200 OK`: Request successful
+- `201 Created`: Resource created successfully
 
-Example error response:
+### Error Responses
+- `400 Bad Request`: Invalid request format or missing required fields
+- `422 Unprocessable Entity`: Validation error
+- `500 Internal Server Error`: Server error during scraping
+
+### Error Response Format
 ```json
 {
-  "detail": "Failed to scrape person profile: Profile not found"
+  "detail": "Failed to scrape person: LinkedIn profile not found"
 }
 ```
 
-## Performance Optimization
+### Common Error Scenarios
+1. **Invalid LinkedIn URL**: Make sure the URL is a valid LinkedIn profile/company/job URL
+2. **Profile Not Found**: The LinkedIn profile may be private or deleted
+3. **Rate Limiting**: LinkedIn may temporarily block requests
+4. **Login Issues**: Check your LinkedIn credentials in environment variables
 
-### Best Practices
+---
 
-1. **Reuse Connections**: Use batch endpoints for multiple profiles
-2. **Rate Limiting**: Implement client-side rate limiting
-3. **Caching**: Cache results to avoid repeated scraping
-4. **Concurrent Requests**: API supports concurrent requests up to driver pool size
-5. **Resource Monitoring**: Monitor `/health` endpoint for system status
+## Deployment
 
-### Scaling Considerations
+### Environment Variables
 
-- **Horizontal Scaling**: Deploy multiple instances behind a load balancer
-- **Database Integration**: Add database storage for scraped data
-- **Queue System**: Implement job queues for large batch operations
-- **Caching Layer**: Add Redis for response caching
+Create a `.env` file with the following variables:
 
-## Security
+```bash
+# Required
+LINKEDIN_EMAIL=your-email@example.com
+LINKEDIN_PASSWORD=your-password
 
-### Production Security Measures
-
-1. **Authentication**: Implement API key authentication
-2. **Rate Limiting**: Add request rate limiting
-3. **Input Validation**: Validate all LinkedIn URLs
-4. **HTTPS**: Use HTTPS in production
-5. **Secrets Management**: Use proper secret management for credentials
-
-### Example Security Enhancement
-
-```python
-from fastapi import Depends, HTTPException, Security
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-security = HTTPBearer()
-
-async def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)):
-    if credentials.credentials != "your-api-key":
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return credentials.credentials
+# Optional
+API_HOST=0.0.0.0
+API_PORT=8000
+LOG_LEVEL=INFO
 ```
 
-## Monitoring and Logging
+### Local Development
 
-### Health Monitoring
+1. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-The `/health` endpoint provides:
-- API status
-- Active driver count
-- Timestamp
-- System resources
+2. **Install ChromeDriver**
+   ```bash
+   # On macOS
+   brew install chromedriver
+   
+   # On Ubuntu/Debian
+   sudo apt-get install chromium-chromedriver
+   
+   # Set environment variable
+   export CHROMEDRIVER=/usr/local/bin/chromedriver
+   ```
 
-### Logging
+3. **Run the application**
+   ```bash
+   uvicorn main:app --reload
+   ```
 
-Comprehensive logging includes:
-- Request/response logs
-- Error tracking
-- Performance metrics
-- Driver pool status
+### Docker Deployment
 
-## Legal Considerations
+#### Build locally
+```bash
+docker build -t linkedin-scraper-api .
+docker run -p 8000:8000 --env-file .env linkedin-scraper-api
+```
 
-⚠️ **Important**: Web scraping may violate LinkedIn's Terms of Service. This tool is for educational purposes only. Users are responsible for:
+#### Using Docker Compose
+```bash
+docker-compose up --build
+```
 
-1. Complying with LinkedIn's robots.txt and Terms of Service
-2. Respecting rate limits and being considerate of LinkedIn's servers
-3. Ensuring compliance with applicable laws and regulations
-4. Obtaining necessary permissions for data use
+### Render Deployment
 
-## Contributing
+1. **Fork this repository**
+
+2. **Connect to Render**
+   - Go to [Render](https://render.com)
+   - Create a new Web Service
+   - Connect your GitHub repository
+
+3. **Configure Environment Variables**
+   - Add `LINKEDIN_EMAIL` and `LINKEDIN_PASSWORD`
+   - Set `PYTHON_VERSION` to `3.11`
+
+4. **Deploy**
+   - Render will automatically build and deploy your API
+   - Access your API at `https://your-service.onrender.com`
+
+### GitHub Container Registry
+
+The project includes GitHub Actions workflow for automatic Docker image building and publishing.
+
+#### Setup
+1. Enable GitHub Actions in your repository
+2. The workflow will automatically build and push images to `ghcr.io/yourusername/linkedin-scraper-api`
+
+#### Pull and run the image
+```bash
+docker pull ghcr.io/yourusername/linkedin-scraper-api:latest
+docker run -p 8000:8000 \
+  -e LINKEDIN_EMAIL=your-email@example.com \
+  -e LINKEDIN_PASSWORD=your-password \
+  ghcr.io/yourusername/linkedin-scraper-api:latest
+```
+
+---
+
+## Rate Limiting & Best Practices
+
+### LinkedIn Rate Limits
+- LinkedIn has strict rate limiting policies
+- Recommended: 1-2 requests per minute
+- Use delays between requests to avoid blocking
+
+### Best Practices
+1. **Respect robots.txt**: Always check LinkedIn's robots.txt
+2. **Use delays**: Implement delays between requests
+3. **Handle errors gracefully**: Retry failed requests with exponential backoff
+4. **Monitor usage**: Keep track of your scraping volume
+5. **Use authentic headers**: The API uses realistic browser headers
+
+### Monitoring
+- Check logs for rate limiting warnings
+- Monitor response times
+- Track success/failure rates
+
+---
+
+## API Documentation
+
+### Interactive Documentation
+Once the API is running, visit:
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
+
+### OpenAPI Schema
+Get the OpenAPI schema at: `http://localhost:8000/openapi.json`
+
+---
+
+## Development
+
+### Project Structure
+```
+├── main.py                 # FastAPI application
+├── requirements.txt        # Python dependencies
+├── Dockerfile             # Docker configuration
+├── docker-compose.yml     # Docker Compose configuration
+├── .env.example          # Environment variables template
+├── .dockerignore         # Docker ignore file
+├── .github/
+│   └── workflows/
+│       └── docker-publish.yml  # GitHub Actions workflow
+└── README.md             # This file
+```
+
+### Adding New Features
+
+1. **Add new endpoints** in `main.py`
+2. **Create request/response models** using Pydantic
+3. **Implement scraping logic** following existing patterns
+4. **Add tests** (recommended)
+5. **Update documentation**
+
+### Testing
+
+```bash
+# Install test dependencies
+pip install pytest pytest-asyncio httpx
+
+# Run tests
+pytest
+```
+
+### Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Add tests
 5. Submit a pull request
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### ChromeDriver Issues
+```bash
+# Check ChromeDriver version
+chromedriver --version
+
+# Update ChromeDriver
+# Download from: https://chromedriver.chromium.org/
+```
+
+#### LinkedIn Login Issues
+- Ensure your LinkedIn account language is set to English
+- Check if your account requires 2FA (not supported)
+- Verify credentials are correct
+
+#### Memory Issues
+- Increase Docker memory allocation
+- Reduce concurrent scraping operations
+- Monitor system resources
+
+#### Rate Limiting
+- Implement delays between requests
+- Use different LinkedIn accounts (not recommended)
+- Monitor LinkedIn's rate limiting messages
+
+### Logs and Debugging
+
+```bash
+# View application logs
+docker-compose logs -f linkedin-scraper-api
+
+# Enable debug logging
+export LOG_LEVEL=DEBUG
+```
+
+---
+
+## Legal Considerations
+
+⚠️ **Important**: 
+- Review LinkedIn's Terms of Service before using
+- Ensure compliance with local data protection laws
+- Use responsibly and respect rate limits
+- Consider LinkedIn's official APIs for commercial use
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see LICENSE file for details
+
+---
 
 ## Support
 
 For issues and questions:
-1. Check the GitHub issues
-2. Review the documentation
-3. Create a new issue with detailed information
+1. Check the [Issues](https://github.com/yourusername/linkedin-scraper-api/issues) page
+2. Create a new issue with detailed information
+3. Include logs and error messages
+
+---
 
 ## Changelog
 
 ### v1.0.0
 - Initial release
-- Person, company, and job scraping
-- Batch processing support
-- Docker and Render deployment
-- Health monitoring
-- Error handling and logging
+- Person, Company, and Job scraping
+- Docker containerization
+- FastAPI implementation
+- GitHub Actions CI/CD
+
+---
+
+## Roadmap
+
+- [ ] Job search functionality
+- [ ] Batch scraping endpoints
+- [ ] Rate limiting middleware
+- [ ] Caching layer
+- [ ] Database integration
+- [ ] Authentication system
+- [ ] Webhook notifications
+- [ ] Data export formats (CSV, Excel)
+
+---
+
+**Made with ❤️ and FastAPI**bash
+curl -X POST "http://localhost:8000/scrape/person" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "linkedin_url": "https://www.linkedin.com/in/john-doe"
+  }'
+```
+
+---
+
+## Company Scraping
+
+### Endpoint
+```http
+POST /scrape/company
+```
+
+### Request Body
+```json
+{
+  "linkedin_url": "https://www.linkedin.com/company/google",
+  "get_employees": true
+}
+```
+
+### Response
+```json
+{
+  "linkedin_url": "https://www.linkedin.com/company/google",
+  "name": "Google",
+  "about_us": "Google's mission is to organize the world's information...",
+  "website": "https://www.google.com",
+  "headquarters": "Mountain View, CA",
+  "founded": "1998",
+  "company_type": "Public Company",
+  "company_size": "100,000+ employees",
+  "specialties": [
+    "Search Technology",
+    "Cloud Computing",
+    "Artificial Intelligence"
+  ],
+  "showcase_pages": [
+    "Google Cloud",
+    "Google AI"
+  ],
+  "affiliated_companies": [
+    "Alphabet Inc.",
+    "YouTube"
+  ],
+  "employees": [
+    {
+      "name": "Jane Smith",
+      "title": "Software Engineer",
+      "linkedin_url": "https://www.linkedin.com/in/jane-smith"
+    }
+  ],
+  "scraped_at": "2024-01-15T10:30:00Z"
+}
+```
+
+### cURL Example
+```bash
+curl -X POST "http://localhost:8000/scrape/company" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "linkedin_url": "https://www.linkedin.com/company/google",
+    "get_employees": true
+  }'
+```
+
+---
+
+## Job Scraping
+
+### Endpoint
+```http
+POST /scrape/job
+```
+
+### Request Body
+```json
+{
+  "linkedin_url": "https://www.linkedin.com/jobs/view/1234567890"
+}
+```
+
+### Response
+```json
+{
+  "linkedin_url": "https://www.linkedin.com/jobs/view/1234567890",
+  "job_title": "Senior Software Engineer",
+  "company": "Tech Corp",
+  "location": "San Francisco, CA",
+  "description": "We are looking for a Senior Software Engineer...",
+  "posted_date": "2024-01-10",
+  "scraped_at": "2024-01-15T10:30:00Z"
+}
+```
+
+### cURL Example
+```
